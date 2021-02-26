@@ -1,0 +1,275 @@
+{-# OPTIONS --cubical #-}
+
+module StateType where
+
+open import Cubical.Data.Nat
+open import Cubical.Data.Nat.Properties
+
+
+open import Cubical.Data.Bool
+open import Cubical.Data.Bool.Properties
+
+open import Cubical.Data.Sigma
+open import Cubical.Data.Sigma.Properties
+-- open import Cubical.Data.Prod
+open import Cubical.Data.Maybe
+
+open import Cubical.Data.Empty
+
+open import Cubical.Data.Sum
+
+open import Cubical.Data.List as L
+
+
+open import Agda.Builtin.String
+
+open import Cubical.Data.Graph
+
+open import Cubical.Relation.Nullary
+
+open import Cubical.Foundations.Everything
+open import Cubical.Foundations.CartesianKanOps
+
+open import Cubical.HITs.SetQuotients
+
+
+-- record Graph' ℓv ℓe : Type (ℓ-suc (ℓ-max ℓv ℓe)) where
+--   field
+--     Obj : Type ℓv
+--     Msg : Obj → Type ℓe
+--     F : ∀ {o} → Msg o → Obj
+
+
+-- G-Iso-G' : Iso (Graph ℓ-zero ℓ-zero) (Graph' ℓ-zero ℓ-zero)
+-- Graph'.Obj (Iso.fun G-Iso-G' x) = Graph.Obj x
+-- Graph'.Msg (Iso.fun G-Iso-G' x) o = Σ (Graph.Obj x) (Graph.Hom x o)
+-- Graph'.F (Iso.fun G-Iso-G' x) = fst
+-- Obj (Iso.inv G-Iso-G' x) = Graph'.Obj x
+-- Hom (Iso.inv G-Iso-G' x) x₁ x₂ = Σ (Graph'.Msg x x₁) λ x₃ → Graph'.F x x₃ ≡ x₂
+-- Graph'.Obj (Iso.rightInv G-Iso-G' b i) = Graph'.Obj b
+-- Graph'.Msg (Iso.rightInv G-Iso-G' b i) x =
+--   {!!}
+-- Graph'.F (Iso.rightInv G-Iso-G' record { Obj = Obj ; Msg = Msg ; F = F } i) {o} x = {!x!}
+-- Iso.leftInv G-Iso-G' = {!   !}
+
+
+
+record StateType : Type₁ where
+  field
+    Obj : Type₀
+    obj₀ : Obj
+    _O≟_ : Discrete Obj
+    Hom : Obj → Obj → Type₀
+    _H≟_ : ∀ {o₁ o₂} → Discrete (Hom o₁ o₂)
+
+open StateType
+
+
+
+  
+-- data BiSTEdge (G₁ G₂ : StateType) : Type₀ where
+--     linkedEdge₁ : BiSTEdge G₁ G₂
+--     linkedEdge₂ : BiSTEdge G₁ G₂
+--     edge₁ : BiSTEdge G₁ G₂
+--     edge₂ : BiSTEdge G₁ G₂
+
+
+isJust : ∀ {ℓ} → {A : Type ℓ} → Maybe A → Bool
+isJust nothing = false
+isJust (just x) = true
+
+→ℕ-mb-¬≡ : {A : Type₀} → (f : A → ℕ) → (x y : A) → True (discreteℕ (f x) (f y)) ⊎ (x ≡ y → ⊥)
+→ℕ-mb-¬≡ f x y with discreteℕ (f x) (f y) 
+... | yes p = inl tt
+... | no ¬p = inr (¬p ∘ cong f)
+
+
+True-Prop : ∀ {ℓ} → {A : Type ℓ} → (x : Dec A) → isProp (True x)
+True-Prop (yes p) tt tt = refl
+
+
+record Linkage (G₁ G₂ : StateType) : Type₀ where
+
+  open StateType
+
+  field
+    1→2 : ((o₁ o₁' : Obj G₁) → Hom G₁ o₁ o₁'
+              → Maybe (((o₂ o₂' : _) → Maybe (Hom G₂ o₂ o₂'))))
+    2→1 : ((o₂ o₂' : Obj G₂) → Hom G₂ o₂ o₂'
+              → Maybe (((o₁ o₁' : _) → Maybe (Hom G₁ o₁ o₁'))))
+
+  linkedObj : Type₀
+  linkedObj = Obj G₁ × Obj G₂ 
+
+  zzz : {A : Type₀} → {B : A → A → Type₀} → (x₁ x₃ : A) → Maybe ((o₂ o₂' : A) → Maybe (B o₂ o₂')) → Type₀
+  zzz x₁ x₃ nothing = ⊥
+  zzz x₁ x₃ (just xz) with xz x₁ x₃
+  ... | nothing = ⊥
+  ... | just x = Unit
+
+  Discrete-zzz : {A : Type₀} → {B : A → A → Type₀} → (x₁ x₃ : A)
+                     → ∀ y →  Discrete (zzz {B = B} x₁ x₃ y) 
+  Discrete-zzz {A} {B} x₁ x₃ (just x₂) x y₁ with x₂ x₁ x₃
+  ... | just x₄ = yes refl
+
+  linkedEdge₁Ty : linkedObj → linkedObj → Type₀
+  linkedEdge₁Ty (x , x₁) (x₂ , x₃) =
+    Σ (Hom G₁ x x₂) λ xx → zzz x₁ x₃ (1→2 x x₂ xx)
+
+
+  Discrete-linkedEdge₁Ty : ∀ {o₁ o₂} → Discrete (linkedEdge₁Ty o₁ o₂)
+  Discrete-linkedEdge₁Ty {(x , x₁)} {(x₂ , x₃)} = discreteΣ (_H≟_ G₁) (Discrete-zzz _ _ ∘ (1→2 _ _))
+
+
+  linkedEdge₂Ty : linkedObj → linkedObj → Type₀
+  linkedEdge₂Ty (x₁ , x) (x₃ , x₂) =
+    Σ (Hom G₂ x x₂) λ xx → zzz x₁ x₃ (2→1 x x₂ xx)
+
+  Discrete-linkedEdge₂Ty : ∀ {o₁ o₂} → Discrete (linkedEdge₂Ty o₁ o₂)
+  Discrete-linkedEdge₂Ty {(x , x₁)} {(x₂ , x₃)} = discreteΣ (_H≟_ G₂) (Discrete-zzz _ _ ∘ (2→1 _ _))
+
+
+  data LinkageEdge (lo lo' : linkedObj ) :  Type₀ where
+      linkedEdge₁ : linkedEdge₁Ty lo lo' → LinkageEdge lo lo'
+      linkedEdge₂ : linkedEdge₂Ty lo lo' → LinkageEdge lo lo'
+      edge₁ : {True ((_O≟_ G₂) (snd lo) (snd lo'))} → Hom G₁ (fst lo) (fst lo') →  LinkageEdge lo lo'
+      edge₂ : {True ((_O≟_ G₁) (fst lo) (fst lo'))} → Hom G₂ (snd lo) (snd lo') →  LinkageEdge lo lo'
+
+  Le-cons : ∀ {lo} {lo'} → LinkageEdge lo lo' → Σ ℕ (const (Σ Type λ x → x))
+  Le-cons (linkedEdge₁ x) = 0 , _ , x
+  Le-cons (linkedEdge₂ x) = 1 , _ , x
+  Le-cons (edge₁ x) = 2 , _ , x
+  Le-cons (edge₂ x) = 3 , _ , x
+
+  Le-mb1 : ∀ {lo} {lo'} → LinkageEdge lo lo' → Maybe (linkedEdge₁Ty lo lo')
+  Le-mb1 (linkedEdge₁ x) = just x
+  Le-mb1 _ = nothing
+
+  Le-mb2 : ∀ {lo} {lo'} → LinkageEdge lo lo' → Maybe (linkedEdge₂Ty lo lo')
+  Le-mb2 (linkedEdge₂ x) = just x
+  Le-mb2 _ = nothing
+
+  Le-mb3 : ∀ {lo} {lo'} → LinkageEdge lo lo' → Maybe (Hom G₁ (fst lo) (fst lo'))
+  Le-mb3 (edge₁ x) = just x
+  Le-mb3 _ = nothing
+
+  Le-mb4 : ∀ {lo} {lo'} → LinkageEdge lo lo' → Maybe (Hom G₂ (snd lo) (snd lo'))
+  Le-mb4 (edge₂ x) = just x
+  Le-mb4 _ = nothing
+
+
+  LE-Disc : {lo lo' : linkedObj} → Discrete (LinkageEdge lo lo')
+  LE-Disc x y with →ℕ-mb-¬≡ (fst ∘ Le-cons) x y
+  LE-Disc xx@(linkedEdge₁ x) yy@(linkedEdge₁ x₂) | inl x₁ =
+        mapDec (cong _) (λ x x₁ → x (just-inj _ _ (cong Le-mb1 x₁))) (Discrete-linkedEdge₁Ty x x₂)
+  LE-Disc (linkedEdge₂ x) (linkedEdge₂ x₂) | inl x₁ =
+        mapDec (cong _) (λ x x₁ → x (just-inj _ _ (cong Le-mb2 x₁))) (Discrete-linkedEdge₂Ty x x₂)
+  LE-Disc {lo} {lo'} (edge₁ {y}  x) (edge₁ {y₁} x₂) | inl x₁ =  
+        mapDec (λ x₃ i → edge₁ {lo} {lo'} {True-Prop ((G₂ O≟ snd lo) (snd lo')) y y₁ i} (x₃ i))
+               (λ x₃ x₄ → x₃ (just-inj _ _ (cong Le-mb3 x₄)))
+               (_H≟_ G₁ x x₂)
+  LE-Disc {lo} {lo'} (edge₂ {y} x) (edge₂ {y₁} x₂) | inl x₁ =
+               mapDec (λ x₃ i → edge₂ {lo} {lo'} {True-Prop ((G₁ O≟ fst lo) (fst lo')) y y₁ i} (x₃ i))
+               (λ x₃ x₄ → x₃ (just-inj _ _ (cong Le-mb4 x₄)))
+               (_H≟_ G₂ x x₂)
+  LE-Disc x y | inr x₁ = no x₁
+  
+  linked : StateType
+  Obj linked = linkedObj
+  obj₀ linked = (obj₀ G₁ , obj₀ G₂)  
+  _O≟_ linked = discreteΣ (_O≟_ G₁) (const (_O≟_ G₂))
+  Hom linked = LinkageEdge
+  _H≟_ linked = LE-Disc
+
+open Linkage
+
+
+
+-- link : (G₁ G₂ : StateType) → Linkage G₁ G₂ → StateType
+-- Obj (link G₁ G₂ L) = {!linkedObj!}
+-- obj₀ (link G₁ G₂ L) = {!!}
+-- _O≟_ (link G₁ G₂ L) = {!!}
+-- Hom (link G₁ G₂ L) = {!!}
+-- _H≟_ (link G₁ G₂ L) = {!!}
+
+
+
+
+module Example₁ where
+
+  Http : StateType 
+  Http = record
+       { Obj = HttpObj
+       ; obj₀ = http zero
+       ; _O≟_ = HttpObjDisc 
+       ; Hom = {!!}
+       ; _H≟_ = {!!}
+       }
+     where
+
+     data HttpObj : Type₀ where
+       http : ℕ → HttpObj
+
+     HttpObjDisc : Discrete HttpObj
+     HttpObjDisc (http x) (http x₁) = {!!}
+
+     data HttpHom : HttpObj → HttpObj → Type₀ where  
+       reg : ∀ k → HttpHom (http k) (http (suc k))  
+
+-- -- data EntityData (e : Entity) : Type₀ where
+-- --   edClean : ℕ → EntityData e 
+-- --   edDirty : ℕ → EntityData e 
+-- --   edEdit : ∀ x n → x ≡ edDirty n
+-- --   edSave : ∀ n → edDirty n ≡ edClean n
+
+
+
+-- --- Example
+
+
+-- Http : Graph ℓ-zero ℓ-zero
+-- Http = record { Obj = HttpObj ; Hom = HttpHom }
+--    where
+
+--    data HttpObj : Type₀ where
+     
+--    data HttpHom : HttpObj → HttpObj → Type₀ where  
+
+
+-- -- data EntityData (e : Entity) : Type₀ where
+-- --   edClean : ℕ → EntityData e 
+-- --   edDirty : ℕ → EntityData e 
+-- --   edEdit : ∀ x n → x ≡ edDirty n
+-- --   edSave : ∀ n → edDirty n ≡ edClean n
+
+-- G-Paths : ∀ {ℓ ℓ'} → (G : Graph ℓ ℓ') → Type (ℓ-max ℓ ℓ')  
+-- G-Paths G = Graph.Obj G / Graph.Hom G
+
+-- MainS : Graph ℓ-zero ℓ-zero
+-- MainS = record { Obj = MainSObj ; Hom = MainSHom }
+--    where
+
+--    data MainSObj : Type₀ where
+--      noEntitySelected : MainSObj
+--      entitySelected : Entity → MainSObj
+
+--    data MainSHom : MainSObj → MainSObj → Type₀ where  
+--      selectEntity : ∀ e → MainSHom noEntitySelected (entitySelected e)
+--      deSelectEntity : ∀ e → MainSHom  (entitySelected e) noEntitySelected
+
+-- EntityS : Entity → Graph ℓ-zero ℓ-zero
+-- EntityS e = record { Obj = EntitySObj e ; Hom = EntitySHom e }
+--    where
+
+--    data EntitySObj (e : Entity) : Type₀ where
+--      edClean : ℕ → EntitySObj e
+--      edDirty : ℕ → ℕ → EntitySObj e
+
+--    commitedVal : ∀ {e} → EntitySObj e → ℕ
+--    commitedVal (edClean x) = x
+--    commitedVal (edDirty x x₁) = x
+
+--    data EntitySHom (e : Entity) : EntitySObj e → EntitySObj e → Type₀ where  
+--      edEdit : ∀ x n → EntitySHom e x (edDirty (commitedVal x) n)
+--      edSave : ∀ n' n → EntitySHom e (edDirty n' n) (edClean n)
+--      edDiscard : ∀ n' n → EntitySHom e (edDirty n' n) (edClean n')
